@@ -15,13 +15,13 @@ type MiddlewareFunc func(ctx context.Context) error
 
 //Endpoint of an service
 type Endpoint interface {
-  //WithBefore places a middleware before the handler.
-  //WithBefore can be called multiple as every middleware is appended one after another
+	//WithBefore places a middleware before the handler.
+	//WithBefore can be called multiple as every middleware is appended one after another
 	WithBefore(mw MiddlewareFunc) Endpoint
-  //WithAfter places a middleware after the handler.
-  //WithAfter can be called multiple as every middleware is appended one after another
+	//WithAfter places a middleware after the handler.
+ 	//WithAfter can be called multiple as every middleware is appended one after another
 	WithAfter(mw MiddlewareFunc) Endpoint
-  //HandlerFunc for the http endpoint
+	//HandlerFunc for the http endpoint
 	HandlerFunc(*zap.Logger) http.HandlerFunc
 }
 

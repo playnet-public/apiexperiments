@@ -2,9 +2,10 @@ package transport
 
 import (
 	"context"
-  "net/http"
-  "github.com/playnet-public/apiexperiments/problems"
-  "github.com/playnet-public/apiexperiments/encode"
+	"net/http"
+	"github.com/playnet-public/apiexperiments/problems"
+	"github.com/playnet-public/apiexperiments/encode"
+	"go.uber.org/zap"
 )
 
 //HandlerFunc of the main service functions

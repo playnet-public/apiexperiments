@@ -108,8 +108,8 @@ func (e *endpoint) encodeError(w http.ResponseWriter, err error, l *zap.Logger) 
 	}
 }
 
-func (e *endpoint) finalizeError(err error) *problem.Problem {
-	p, ok := err.(*problem.Problem)
+func (e *endpoint) finalizeError(err error) problem.Problem {
+	p, ok := err.(problem.Problem)
 	if !ok {
 		p = problem.New(
 			http.StatusText(http.StatusInternalServerError),

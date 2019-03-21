@@ -3,8 +3,9 @@ package transport
 import (
 	"context"
 	"net/http"
-	"github.com/playnet-public/apiexperiments/problems"
-	"github.com/playnet-public/apiexperiments/encode"
+
+	"github.com/TheMysteriousVincent/apiexperiments/encode"
+	"github.com/TheMysteriousVincent/libs/problem"
 	"go.uber.org/zap"
 )
 
@@ -12,16 +13,16 @@ import (
 type HandlerFunc func(ctx context.Context, r *http.Request) (interface{}, error)
 
 //MiddlewareFunc of middlewares surrounding the main service
-type MiddlewareFunc func(ctx context.Context) error
+type MiddlewareFunc func(ctx context.Context, r *http.Request) error
 
 //Endpoint of an service
 type Endpoint interface {
-	//WithBefore places a middleware before the handler.
-	//WithBefore can be called multiple as every middleware is appended one after another
-	WithBefore(mw MiddlewareFunc) Endpoint
-	//WithAfter places a middleware after the handler.
- 	//WithAfter can be called multiple as every middleware is appended one after another
-	WithAfter(mw MiddlewareFunc) Endpoint
+	//PutMiddlewareBefore the handler.
+	//PutMiddlewareBefore can be called multiple as every middleware is appended one after another
+	PutMiddlewareBefore(mw MiddlewareFunc) Endpoint
+	//PutMiddlewareAfter the handler.
+	//PutMiddlewareAfter can be called multiple as every middleware is appended one after another
+	PutMiddlewareAfter(mw MiddlewareFunc) Endpoint
 	//HandlerFunc for the http endpoint
 	HandlerFunc(*zap.Logger) http.HandlerFunc
 }
@@ -41,32 +42,32 @@ func NewEndpoint(e encode.Encoder, hndl HandlerFunc) Endpoint {
 	}
 }
 
-func (e *endpoint) WithBefore(mw MiddlewareFunc) Endpoint {
+func (e *endpoint) PutMiddlewareBefore(mw MiddlewareFunc) Endpoint {
 	if e.before == nil {
 		e.before = mw
 	} else {
-		e.before = func(ctx context.Context) error {
-			if err := e.before(ctx); err != nil {
+		e.before = func(ctx context.Context, r *http.Request) error {
+			if err := e.before(ctx, r); err != nil {
 				return err
 			}
 
-			return mw(ctx)
+			return mw(ctx, r)
 		}
 	}
 
 	return e
 }
 
-func (e *endpoint) WithAfter(mw MiddlewareFunc) Endpoint {
+func (e *endpoint) PutMiddlewareAfter(mw MiddlewareFunc) Endpoint {
 	if e.after == nil {
 		e.after = mw
 	} else {
-		e.after = func(ctx context.Context) error {
-			if err := e.after(ctx); err != nil {
+		e.after = func(ctx context.Context, r *http.Request) error {
+			if err := e.after(ctx, r); err != nil {
 				return err
 			}
 
-			return mw(ctx)
+			return mw(ctx, r)
 		}
 	}
 
@@ -77,7 +78,7 @@ func (e *endpoint) HandlerFunc(l *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		if err := e.before(ctx); err != nil {
+		if err := e.before(ctx, r); err != nil {
 			e.encodeError(w, err, l)
 			return
 		}
@@ -88,7 +89,7 @@ func (e *endpoint) HandlerFunc(l *zap.Logger) http.HandlerFunc {
 			return
 		}
 
-		if err := e.after(ctx); err != nil {
+		if err := e.after(ctx, r); err != nil {
 			e.encodeError(w, err, l)
 			return
 		}
@@ -98,11 +99,28 @@ func (e *endpoint) HandlerFunc(l *zap.Logger) http.HandlerFunc {
 }
 
 func (e *endpoint) encodeError(w http.ResponseWriter, err error, l *zap.Logger) {
-	if err := e.enc.Encode(w, problemError(err)); err != nil {
+	if err := e.enc.Encode(w, e.finalizeError(err)); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		l.Error(
 			"encoding failed",
 			zap.Error(err),
 		)
 	}
+}
+
+func (e *endpoint) finalizeError(err error) *problem.Problem {
+	p, ok := err.(*problem.Problem)
+	if !ok {
+		p = problem.New(
+			http.StatusText(http.StatusInternalServerError),
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+	}
+
+	if p.Status == 0 {
+		p.Status = http.StatusInternalServerError
+	}
+
+	return p
 }
